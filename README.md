@@ -1,59 +1,80 @@
-# AI Assistant Pro - Chat con Configuración de LLM
+# Personalización de la Web App para LLM
 
-Este proyecto es una interfaz de chat moderna y profesional que permite interactuar con un modelo de lenguaje (LLM) mediante una API, con opciones avanzadas de configuración del modelo directamente desde el frontend.
+Este proyecto consiste en la mejora de una interfaz web para interactuar con un modelo de lenguaje (LLM), agregando opciones de personalización avanzada desde el frontend. La aplicación permite ajustar parámetros clave del modelo, validar entradas y garantizar el formato correcto de la solicitud enviada al servidor.
 
-Diseñado para cumplir con los requisitos del curso, incluye controles para ajustar parámetros clave como temperatura, top-p, top-k y esfuerzo de razonamiento, con validaciones y exclusividad entre métodos de muestreo.
-
----
-
-## 🚀 Características
-
-- 💬 Interfaz de chat limpia y responsiva
-- ⚙️ Sección de configuración integrada junto al input
-- 🔧 Ajuste de parámetros del modelo:
-  - **Temperatura** `[0, 2]`
-  - **Top-P** `[0, 1]`
-  - **Top-K** `[0, 20]`
-  - **Esfuerzo de razonamiento**: minimal, low, medium, high
-- ✅ Validaciones de rango en tiempo real
-- 🚫 Exclusividad entre `top_p` y `top_k` (solo se envía uno)
-- 📦 Estructura de solicitud al servidor conforme al formato requerido
-- 🌐 Comunicación con backend vía `fetch` y `POST`
+La solución cumple con todos los requisitos solicitados, priorizando una experiencia de usuario clara, funcional y técnica.
 
 ---
 
-## 📂 Estructura del Proyecto
+## 🛠️ ¿Qué se implementó?
 
-/src
-/components
-ChatInterface.tsx → Interfaz principal del chat
-ChatSettings.tsx → Panel de configuración de parámetros
-MessageBubble.tsx → Componente reutilizable para mensajes
-/types
-chat.ts → Tipos TypeScript para mensajes y parámetros
+Se partió del proyecto inicial del frontend y se realizaron las siguientes mejoras:
 
----
+### 1. **Sección de configuración junto al input**
 
-## 🧩 Tecnologías utilizadas
+- Se agregó un botón de ajustes (⚙️) justo en la barra de entrada.
+- Al hacer clic, se despliega un panel con los controles necesarios.
+- Esta ubicación mejora la usabilidad, manteniendo las opciones accesibles sin saturar la interfaz principal.
 
-- **React** + **TypeScript**
-- **Tailwind CSS** (estilos modernos y responsivos)
-- **@tanstack/react-query** (gestión de solicitudes)
-- JavaScript moderno (ES6+)
-- Diseño responsive para móviles y escritorio
+### 2. **Controles para los parámetros del modelo**
 
----
+Se implementaron inputs para:
 
-## 📦 Formato del cuerpo enviado al servidor
+- **Temperatura** (`temperature`)
+- **Top-P** (`top_p`)
+- **Top-K** (`top_k`)
+- **Esfuerzo de razonamiento** (`reasoning_effort`)
 
-```json
-{
-  "input": "Hola, ¿qué puedes hacer?",
-  "params": {
-    "temperature": 0.8,
-    "top_p": 0.9,
-    "reasoning_effort": "medium",
-    "system_prompt": "Eres un asistente de IA útil..."
-  }
+Todos los controles son intuitivos: sliders para valores numéricos y un selector para el nivel de razonamiento.
+
+### 3. **Validaciones necesarias**
+
+Se aplicaron validaciones en tiempo real para garantizar que los valores estén dentro de los rangos permitidos:
+
+- `temperature`: entre **0 y 2**
+- `top_p`: entre **0 y 1**
+- `top_k`: entre **0 y 20**
+- `reasoning_effort`: solo permite valores válidos (`minimal`, `low`, `medium`, `high`)
+
+Estas validaciones se realizan tanto en el frontend como antes de enviar la solicitud.
+
+### 4. **Exclusividad entre `top_p` y `top_k`**
+
+Un requisito clave fue: **solo se debe enviar uno de los dos parámetros, nunca ambos**.
+
+✅ **Solución implementada**:
+
+- En el estado del componente `ChatInterface`, al cambiar `top_p`, se establece `top_k` en `null`.
+- Y viceversa: al cambiar `top_k`, se pone `top_p` en `null`.
+- Esto se maneja en la función `handleParamsChange` usando una actualización atómica del estado.
+- Al construir la solicitud, se usa el operador spread (`...`) para incluir solo el parámetro no nulo.
+
+Ejemplo:
+
+```ts
+const requestBody = {
+  input: message,
+  params: {
+    temperature: 0.8,
+    reasoning_effort: 'medium',
+    ...(top_p !== null ? { top_p } : {}),
+    ...(top_k !== null ? { top_k } : {}),
+  },
 }
 ```
+
+➡️ Esto asegura que solo uno de los dos parámetros se envíe, cumpliendo estrictamente con el requisito.
+
+### 5. Formato correcto del cuerpo de la solicitud
+
+La estructura del objeto enviado al servidor sigue exactamente el formato solicitado:
+
+{
+"input": "mensaje del usuario",
+"params": {
+"temperature": 0.7,
+"top_p": 0.9,
+"top_k": null,
+"reasoning_effort": "medium"
+}
+}
