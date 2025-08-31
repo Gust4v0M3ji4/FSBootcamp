@@ -1,5 +1,4 @@
 // /src/types/chat.ts
-
 export interface Message {
   id: string
   content: string
@@ -12,6 +11,7 @@ export interface ChatResponse {
 }
 
 // Interfaz para los parámetros del LLM
+// (Mantener los mismos nombres para compatibilidad con ChatSettings)
 export interface LLMParams {
   temperature: number | null
   top_p: number | null
@@ -21,6 +21,7 @@ export interface LLMParams {
 }
 
 // Interfaz para el cuerpo completo de la solicitud a la API
+// (Ya no se usa para la llamada a WebLLM, pero se mantiene por compatibilidad)
 export interface CompletionRequest {
   input: string
   params: LLMParams

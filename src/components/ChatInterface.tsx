@@ -1,45 +1,15 @@
 // /src/components/ChatInterface.tsx
-
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { ChatSettings } from './ChatSettings'
 import { MessageBubble } from './MessageBubble'
-import type {
-  Message,
-  ChatResponse,
-  LLMParams,
-  CompletionRequest,
-} from '../types/chat'
+import { ModelSelector } from './ModelSelector' // Nuevo componente
+import { useWebLLM } from '@/hooks/useWebLLM' // Nuevo hook
+// import { generateSystemPrompt } from '@/services/webllmService'; // ❌ Eliminado - Causaba TS2305
+import type { Message, LLMParams } from '../types/chat'
 
-// --- API Call ---
-async function sendMessage(
-  requestBody: CompletionRequest,
-): Promise<ChatResponse> {
-  const API_URL = 'https://llm-bootcamp.cardor.dev/api/completion' // ✅ sin espacios
-
-  try {
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody),
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Error ${response.status}: ${errorText}`)
-    }
-
-    const data = await response.json()
-    return { message: data.message || data.content || 'Sin respuesta' }
-  } catch (error) {
-    console.error('Error en fetch:', error)
-    throw new Error(
-      `Fallo de conexión: ${error instanceof Error ? error.message : String(error)}`,
-    )
-  }
-}
-
-// --- Generar system_prompt ---
+// --- Generar system_prompt (MOVIDO AQUÍ para evitar el error de importación) ---
+// Esta función es específica de la lógica de este componente
 const generateSystemPrompt = (params: LLMParams): string => {
   const temperature = params.temperature ?? 0.7
   const top_p = params.top_p ?? null
@@ -51,7 +21,7 @@ const generateSystemPrompt = (params: LLMParams): string => {
     low: 'conciso pero claro',
     medium: 'detallado y equilibrado',
     high: 'muy detallado, con razonamiento paso a paso',
-  }
+  } as const // Añadido para tipado más estricto
 
   let sampling = 'con muestreo estándar'
   if (top_p !== null && top_p > 0) {
@@ -69,11 +39,25 @@ const generateSystemPrompt = (params: LLMParams): string => {
 
   return `Eres un asistente de IA útil y amable. Responde de forma ${effortMap[reasoning_effort]}, ${tempDesc}, ${sampling}. Mantén un tono profesional y claro.`
 }
+// -----------------------------------------------------------------------------
 
 export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([])
   const [inputValue, setInputValue] = useState('')
   const [showSettings, setShowSettings] = useState(false)
+
+  // --- Usar el hook personalizado para WebLLM ---
+  const {
+    selectedModelId,
+    engine,
+    isModelLoading,
+    initProgressState, // Usar el nuevo estado de progreso
+    setSelectedModelId,
+    handleLoadModel,
+    handleGenerate,
+    availableModels,
+  } = useWebLLM()
+  // ---------------------------------------------
 
   const initialParams: LLMParams = {
     temperature: 0.7,
@@ -85,50 +69,67 @@ export default function ChatInterface() {
 
   const [llmParams, setLlmParams] = useState<LLMParams>({
     ...initialParams,
-    system_prompt: generateSystemPrompt(initialParams),
+    system_prompt: generateSystemPrompt(initialParams), // Generar inicialmente
   })
 
-  // ✅ CORREGIDO: exclusividad entre top_p y top_k
-  const handleParamsChange = (newParams: Partial<LLMParams>) => {
+  // --- Modificar handleParamsChange ---
+  const handleParamsChange: React.Dispatch<
+    React.SetStateAction<Partial<LLMParams>>
+  > = (newParams) => {
+    // Tipado explícito
     setLlmParams((prev) => {
-      let updated = { ...prev, ...newParams }
+      // Asegurarse de que newParams es un objeto, no una función
+      const paramsToUpdate =
+        typeof newParams === 'function' ? newParams(prev) : newParams
 
-      // ✅ Validaciones de rango
-      if (updated.temperature !== null) {
+      let updated = { ...prev, ...paramsToUpdate }
+
+      // Validaciones de rango
+      if (updated.temperature !== null && updated.temperature !== undefined) {
         updated.temperature = Math.max(0, Math.min(2, updated.temperature))
       }
-      if (updated.top_p !== null) {
+      if (updated.top_p !== null && updated.top_p !== undefined) {
         updated.top_p = Math.max(0, Math.min(1, updated.top_p))
       }
-      if (updated.top_k !== null) {
+      if (updated.top_k !== null && updated.top_k !== undefined) {
         updated.top_k = Math.max(0, Math.min(20, updated.top_k))
       }
 
-      // ✅ Exclusividad: si top_p está activo, top_k = null
+      // Exclusividad: si top_p está activo, top_k = null
       if (
-        newParams.top_p !== undefined &&
-        newParams.top_p !== null &&
-        newParams.top_p > 0
+        paramsToUpdate.top_p !== undefined &&
+        paramsToUpdate.top_p !== null &&
+        paramsToUpdate.top_p > 0
       ) {
         updated.top_k = null
       }
-      // ✅ Si top_k está activo, top_p = null
+      // Si top_k está activo, top_p = null
       if (
-        newParams.top_k !== undefined &&
-        newParams.top_k !== null &&
-        newParams.top_k > 0
+        paramsToUpdate.top_k !== undefined &&
+        paramsToUpdate.top_k !== null &&
+        paramsToUpdate.top_k > 0
       ) {
         updated.top_p = null
       }
 
-      // ✅ Regenerar prompt
+      // Regenerar prompt
       updated.system_prompt = generateSystemPrompt(updated)
       return updated
     })
   }
+  // ----------------------------------
 
-  const chatMutation = useMutation({
-    mutationFn: sendMessage,
+  // --- Modificar useMutation para usar el hook ---
+  const chatMutation = useMutation<
+    { message: string },
+    Error,
+    { input: string }
+  >({
+    // Tipado explícito
+    mutationFn: async (requestBody: { input: string }) => {
+      const responseContent = await handleGenerate(requestBody.input)
+      return { message: responseContent }
+    },
     onSuccess: (data) => {
       const botMessage: Message = {
         id: Date.now().toString() + '-bot',
@@ -138,7 +139,8 @@ export default function ChatInterface() {
       }
       setMessages((prev) => [...prev, botMessage])
     },
-    onError: (error) => {
+    onError: (error: Error) => {
+      // Tipado explícito
       const errorMessage: Message = {
         id: Date.now().toString() + '-error',
         content: `❌ ${error.message}`,
@@ -148,10 +150,11 @@ export default function ChatInterface() {
       setMessages((prev) => [...prev, errorMessage])
     },
   })
+  // ---------------------------------------------
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!inputValue.trim() || chatMutation.isPending) return
+    if (!inputValue.trim() || chatMutation.isPending || !engine) return
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -162,34 +165,35 @@ export default function ChatInterface() {
 
     setMessages((prev) => [...prev, userMessage])
 
-    // ✅ Solo se envía top_p o top_k, no ambos
-    const requestBody: CompletionRequest = {
-      input: inputValue,
-      params: {
-        temperature: llmParams.temperature ?? 0.7,
-        reasoning_effort: llmParams.reasoning_effort,
-        system_prompt: llmParams.system_prompt,
-        top_p: llmParams.top_p !== undefined ? llmParams.top_p : null,
-        top_k: llmParams.top_k !== undefined ? llmParams.top_k : null,
-      },
-    }
-
-    chatMutation.mutate(requestBody)
+    chatMutation.mutate({ input: inputValue })
     setInputValue('')
   }
 
   const clearChat = () => setMessages([])
-
   const hasMessages = messages.length > 0
 
   return (
     <div className="flex flex-col h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
-        <h1 className="text-xl font-bold text-gray-800">AI Assistant Pro</h1>
-        <p className="text-sm text-gray-500">Tu asistente inteligente</p>
+        <h1 className="text-xl font-bold text-gray-800">
+          AI Assistant Pro (Local)
+        </h1>
+        <p className="text-sm text-gray-500">Modelos ejecutándose localmente</p>
       </header>
 
       <div className="flex-1 overflow-hidden flex flex-col max-w-4xl mx-auto w-full px-4">
+        {/* --- Usar el nuevo componente para seleccionar modelo --- */}
+        <ModelSelector
+          selectedModelId={selectedModelId}
+          onModelChange={setSelectedModelId}
+          isLoading={isModelLoading}
+          isLoaded={!!engine}
+          onLoadModel={handleLoadModel}
+          initProgressState={initProgressState} // Pasar el nuevo estado
+          availableModels={availableModels}
+        />
+        {/* ---------------------------------------------------- */}
+
         <div
           className={`flex-1 overflow-y-auto transition-all duration-300 px-2 py-4 ${
             hasMessages ? 'mt-0' : 'mt-12'
@@ -199,10 +203,10 @@ export default function ChatInterface() {
             <div className="text-center text-gray-500 flex flex-col items-center justify-center h-64">
               <span className="text-6xl mb-4">🤖</span>
               <h2 className="text-xl font-medium text-gray-700 mb-2">
-                Bienvenido al Asistente AI
+                Bienvenido al Asistente AI Local
               </h2>
               <p className="text-gray-500 max-w-xs">
-                Escribe tu primera pregunta y comienza a interactuar.
+                Selecciona y carga un modelo, luego escribe tu primera pregunta.
               </p>
             </div>
           ) : (
@@ -264,8 +268,10 @@ export default function ChatInterface() {
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Escribe un mensaje..."
-              disabled={chatMutation.isPending}
+              placeholder={
+                engine ? 'Escribe un mensaje...' : 'Carga un modelo primero...'
+              }
+              disabled={!engine || chatMutation.isPending}
               className="w-full outline-none disabled:text-gray-500"
             />
           </form>
@@ -282,7 +288,7 @@ export default function ChatInterface() {
           <button
             type="submit"
             form=""
-            disabled={!inputValue.trim() || chatMutation.isPending}
+            disabled={!inputValue.trim() || chatMutation.isPending || !engine}
             className="p-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
             aria-label="Enviar"
           >
