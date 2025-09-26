@@ -1,13 +1,34 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
-// Conexión a MongoDB local
-mongoose.connect('mongodb://localhost:27017/bootcamp2025')
-  .then(() => console.log('✅ Conectado a MongoDB Local'))
-  .catch(err => console.error('❌ Error de conexión a MongoDB Local:', err));
+// Conexión a MongoDB Atlas
+const MONGODB_URI =
+  "mongodb+srv://gustavojosemejiar5_db_user:oKtCChmvrto1PqOY@cluster0.4lk1pug.mongodb.net/bootcamp2025?retryWrites=true&w=majority&appName=Cluster0";
 
+mongoose
+  .connect(MONGODB_URI)
+  .then(() => {
+    console.log("✅ Conectado exitosamente a MongoDB Atlas");
+    console.log("🌐 Base de datos: bootcamp2025");
+  })
+  .catch((err) => {
+    console.error("❌ Error de conexión a MongoDB Atlas:", err);
+    process.exit(1);
+  });
+
+// Evento para monitorear el estado de la conexión
+mongoose.connection.on("connected", () => {
+  console.log("🔗 Mongoose conectado a MongoDB Atlas");
+});
+
+mongoose.connection.on("error", (err) => {
+  console.error("❌ Error en la conexión de Mongoose:", err);
+});
+
+mongoose.connection.on("disconnected", () => {
+  console.log("🔌 Mongoose desconectado de MongoDB Atlas");
+});
 
 module.exports = mongoose;
-
 
 // // Esquema de Usuario
 // const userSchema = new mongoose.Schema({
@@ -89,11 +110,11 @@ module.exports = mongoose;
 // async function updateUser(id, updateData) {
 //   try {
 //     const user = await User.findOneAndUpdate(
-//       { id }, 
-//       updateData, 
+//       { id },
+//       updateData,
 //       { new: true, runValidators: true }
 //     ).select('-_id -__v');
-    
+
 //     if (!user) {
 //       return { success: false, error: 'Usuario no encontrado' };
 //     }

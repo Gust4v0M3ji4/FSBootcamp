@@ -1,88 +1,278 @@
-const router = require('express').Router();
-const { query, validationResult} = require('express-validator');
+const router = require("express").Router();
+const { body, param, query, validationResult } = require("express-validator");
 
 /* Models */
-const Users = require('../../models/users');
+const Users = require("../../models/users");
 
-let users = [{
-    id: 1,
-    name: 'Carlos',
-    email: 'carlos@gmail.com',
-    age: 20
-}];
+// ========== VALIDACIONES ==========
 
-// Entity: users 
-/** */
-router.get('/', (req, res) => {
-    return Users.getAllUsers((err, users) => {
-        if(err){
-            return res.status(500).json({ code: 'ER', message: 'Error getting users!'});
-        }
-        res.json({ code: 'OK', message: 'Users are available!', data:{ users}});
+// Validaciones para crear usuario
+const validateCreateUser = [
+  body("name")
+    .notEmpty()
+    .withMessage("El nombre es requerido")
+    .isLength({ min: 2, max: 50 })
+    .withMessage("El nombre debe tener entre 2 y 50 caracteres")
+    .trim(),
+
+  body("email")
+    .isEmail()
+    .withMessage("Debe ser un email válido")
+    .normalizeEmail(),
+
+  body("age")
+    .isInt({ min: 0, max: 150 })
+    .withMessage("La edad debe ser un número entre 0 y 150"),
+];
+
+// Validaciones para actualizar usuario
+const validateUpdateUser = [
+  param("id").isMongoId().withMessage("ID de usuario inválido"),
+
+  body("name")
+    .optional()
+    .isLength({ min: 2, max: 50 })
+    .withMessage("El nombre debe tener entre 2 y 50 caracteres")
+    .trim(),
+
+  body("email")
+    .optional()
+    .isEmail()
+    .withMessage("Debe ser un email válido")
+    .normalizeEmail(),
+
+  body("age")
+    .optional()
+    .isInt({ min: 0, max: 150 })
+    .withMessage("La edad debe ser un número entre 0 y 150"),
+];
+
+// Validación para parámetro ID
+const validateId = [
+  param("id").isMongoId().withMessage("ID de usuario inválido"),
+];
+
+// ========== ENDPOINTS CRUD ==========
+
+// GET /api/users - Listar usuarios con paginación y filtros
+router.get("/", async (req, res) => {
+  try {
+    console.log("📋 GET /api/v1/users - Query params:", req.query);
+
+    const options = {
+      page: parseInt(req.query.page) || 1,
+      limit: parseInt(req.query.limit) || 10,
+      sort: req.query.sort || "createdAt",
+      order: req.query.order || "desc",
+      name: req.query.name,
+      email: req.query.email,
+      minAge: req.query.minAge,
+      maxAge: req.query.maxAge,
+      isActive: req.query.isActive !== "false", // Por defecto true, solo false si se especifica
+    };
+
+    const result = await Users.getAllUsers(options);
+
+    if (!result.success) {
+      return res.status(500).json({
+        code: "ER",
+        message: "Error obteniendo usuarios",
+        error: result.error,
+      });
+    }
+
+    res.status(200).json({
+      code: "OK",
+      message: "Usuarios obtenidos exitosamente",
+      data: result.data,
     });
+  } catch (error) {
+    console.error("❌ Error en GET /users:", error);
+    res.status(500).json({
+      code: "ER",
+      message: "Error interno del servidor",
+      error: error.message,
+    });
+  }
 });
 
-router.get('/query', query('id').notEmpty(), (req, res) => {
-
+// POST /api/users - Crear nuevo usuario
+router.post("/", validateCreateUser, async (req, res) => {
+  try {
+    // Verificar errores de validación
     const errors = validationResult(req);
-
     if (!errors.isEmpty()) {
-        return res.json({ code: 'PF', message: 'User ID is required!'});
+      return res.status(400).json({
+        code: "PF",
+        message: "Datos de entrada inválidos",
+        errors: errors.array(),
+      });
     }
 
-    const id = req.query.id;
+    console.log("➕ POST /api/v1/users - Body:", req.body);
 
-    return Users.getUserById(id, (err, user) => {
-        if(err){
-            return res.status(500).json({ code: 'ER', message: 'Error getting user!'});
-        }
-        if(!user) {
-            return res.status(404).json({ code: 'NF', message: 'User not found!'});
-        }
-        res.json({ code: 'OK', message: 'User is available!', data:{ user}});
+    const { name, email, age } = req.body;
+    const userData = { name, email, age };
+
+    const result = await Users.saveUser(userData);
+
+    if (!result.success) {
+      return res.status(400).json({
+        code: "ER",
+        message: "Error creando usuario",
+        error: result.error,
+      });
+    }
+
+    res.status(201).json({
+      code: "OK",
+      message: "Usuario creado exitosamente",
+      data: { user: result.data },
     });
-});
-
-router.post('/', (req, res) => {
-    console.log('POST /users:',req.body);
-    const { name, email = new Date().getTime()+ '@gmail.com', age } = req.body;
-
-    const newUser = { id: new Date().getTime() ,name, email, age };
-
-    return Users.saveUser(newUser, (err, user) => {
-        if(err){
-            return res.status(500).json({ code: 'ER', message: 'Error creating user!'});
-        }
-        res.json({ code: 'OK', message: 'User created successfully!', data: {user}});
+  } catch (error) {
+    console.error("❌ Error en POST /users:", error);
+    res.status(500).json({
+      code: "ER",
+      message: "Error interno del servidor",
+      error: error.message,
     });
+  }
 });
 
-router.put('/:id', (req, res) => {
-    const id = req.params.id;
-    const user = users.find((user) => user.id == id );
-
-    if(user){
-        /** Update user */
-        const { name, emai } = req.body;
-        user.name = name;
-        user.email = email;
-        //user.age = age;
-        res.json({ code: 'OK', message: 'User updated successfully!', data: { user}});
-        return;
+// GET /api/users/:id - Obtener usuario por ID
+router.get("/:id", validateId, async (req, res) => {
+  try {
+    // Verificar errores de validación
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        code: "PF",
+        message: "ID de usuario inválido",
+        errors: errors.array(),
+      });
     }
-    /** User not found  */
-    res.status(404).json({ code: 'NF', message: 'User not found!'});
+
+    const { id } = req.params;
+    console.log(`🔍 GET /api/v1/users/${id}`);
+
+    const result = await Users.getUserById(id);
+
+    if (!result.success) {
+      const statusCode = result.error === "Usuario no encontrado" ? 404 : 400;
+      return res.status(statusCode).json({
+        code: "NF",
+        message: result.error,
+      });
+    }
+
+    res.status(200).json({
+      code: "OK",
+      message: "Usuario encontrado",
+      data: { user: result.data },
+    });
+  } catch (error) {
+    console.error("❌ Error en GET /users/:id:", error);
+    res.status(500).json({
+      code: "ER",
+      message: "Error interno del servidor",
+      error: error.message,
+    });
+  }
 });
 
-router.delete('/:id', (req, res) => {
-    const id = req.params.id;
-    console.log('DELETE /users/:id:',id);
-    const user = users.find(user => user.id == id);
-    if (user) {
-        users = users.filter(user => user.id != id);
-        return res.json({ code: 'OK', message: 'User deleted!', data: { user}})
+// PUT /api/users/:id - Actualizar usuario
+router.put("/:id", validateUpdateUser, async (req, res) => {
+  try {
+    // Verificar errores de validación
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        code: "PF",
+        message: "Datos de entrada inválidos",
+        errors: errors.array(),
+      });
     }
-    res.status(404).json({ code: 'PF', message: 'User not found!'});
+
+    const { id } = req.params;
+    console.log(`✏️ PUT /api/v1/users/${id} - Body:`, req.body);
+
+    // Filtrar solo los campos que se enviaron
+    const updateData = {};
+    if (req.body.name !== undefined) updateData.name = req.body.name;
+    if (req.body.email !== undefined) updateData.email = req.body.email;
+    if (req.body.age !== undefined) updateData.age = req.body.age;
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({
+        code: "PF",
+        message: "No se proporcionaron datos para actualizar",
+      });
+    }
+
+    const result = await Users.updateUser(id, updateData);
+
+    if (!result.success) {
+      const statusCode = result.error === "Usuario no encontrado" ? 404 : 400;
+      return res.status(statusCode).json({
+        code: result.error === "Usuario no encontrado" ? "NF" : "ER",
+        message: result.error,
+      });
+    }
+
+    res.status(200).json({
+      code: "OK",
+      message: "Usuario actualizado exitosamente",
+      data: { user: result.data },
+    });
+  } catch (error) {
+    console.error("❌ Error en PUT /users/:id:", error);
+    res.status(500).json({
+      code: "ER",
+      message: "Error interno del servidor",
+      error: error.message,
+    });
+  }
+});
+
+// DELETE /api/users/:id - Eliminar usuario (eliminación lógica)
+router.delete("/:id", validateId, async (req, res) => {
+  try {
+    // Verificar errores de validación
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        code: "PF",
+        message: "ID de usuario inválido",
+        errors: errors.array(),
+      });
+    }
+
+    const { id } = req.params;
+    console.log(`🗑️ DELETE /api/v1/users/${id}`);
+
+    const result = await Users.deleteUser(id);
+
+    if (!result.success) {
+      const statusCode = result.error === "Usuario no encontrado" ? 404 : 400;
+      return res.status(statusCode).json({
+        code: "NF",
+        message: result.error,
+      });
+    }
+
+    res.status(200).json({
+      code: "OK",
+      message: "Usuario eliminado exitosamente (eliminación lógica)",
+      data: { user: result.data },
+    });
+  } catch (error) {
+    console.error("❌ Error en DELETE /users/:id:", error);
+    res.status(500).json({
+      code: "ER",
+      message: "Error interno del servidor",
+      error: error.message,
+    });
+  }
 });
 
 module.exports = router;

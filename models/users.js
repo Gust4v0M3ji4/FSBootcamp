@@ -1,25 +1,30 @@
-const User = require('../schemas/users');
+const UserSchema = require("../schemas/users");
 
+// Convertir funciones callback a async/await
+const getAllUsers = async (options = {}) => {
+  return await UserSchema.findAllUsers(options);
+};
 
-const getAllUsers = (callback) => { 
-    return User.findAllUsers(callback);
-}
+const getUserById = async (id) => {
+  return await UserSchema.findUserById(id);
+};
 
-const getUserById = (id, callback) => {
-    return User.findUserById(id, callback);
-}
+const saveUser = async (userData) => {
+  return await UserSchema.saveUser(userData);
+};
 
-const saveUser = (user, callback) => {
-    return User.saveUser(user, callback);
-}
+const updateUser = async (id, updateData) => {
+  return await UserSchema.updateUser(id, updateData);
+};
 
-const updateUser = (id, user, callback) => {
-    return User.updateUser(id, user, callback);
-}
+const deleteUser = async (id) => {
+  return await UserSchema.deleteUser(id);
+};
 
 module.exports = {
-    getAllUsers,
-    getUserById,
-    saveUser,
-    updateUser
-}
+  getAllUsers,
+  getUserById,
+  saveUser,
+  updateUser,
+  deleteUser,
+};
