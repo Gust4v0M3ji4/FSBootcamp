@@ -1,13 +1,20 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
-// Conexión a MongoDB local
-mongoose.connect('mongodb://localhost:27017/bootcamp2025')
-  .then(() => console.log('✅ Conectado a MongoDB Local'))
-  .catch(err => console.error('❌ Error de conexión a MongoDB Local:', err));
+// Conexión a MongoDB usando variable de entorno
+const mongoUri =
+  process.env.MONGODB_URI || "mongodb://localhost:27017/bootcamp_tarea3";
 
+mongoose
+  .connect(mongoUri)
+  .then(() =>
+    console.log(
+      "✅ Conectado a MongoDB:",
+      mongoUri.includes("mongodb+srv") ? "MongoDB Atlas" : "MongoDB Local"
+    )
+  )
+  .catch((err) => console.error("❌ Error de conexión a MongoDB:", err));
 
 module.exports = mongoose;
-
 
 // // Esquema de Usuario
 // const userSchema = new mongoose.Schema({
@@ -89,11 +96,11 @@ module.exports = mongoose;
 // async function updateUser(id, updateData) {
 //   try {
 //     const user = await User.findOneAndUpdate(
-//       { id }, 
-//       updateData, 
+//       { id },
+//       updateData,
 //       { new: true, runValidators: true }
 //     ).select('-_id -__v');
-    
+
 //     if (!user) {
 //       return { success: false, error: 'Usuario no encontrado' };
 //     }
