@@ -1,104 +1,115 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../../context/AuthContext';
+import React, { useState, useEffect } from "react";
+import { useAuth } from "../../context/AuthContext";
 
-const UserModal = ({ isOpen, onClose, user = null, mode = 'create' }) => {
+const UserModal = ({ isOpen, onClose, user = null, mode = "create" }) => {
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    password: '',
-    age: ''
+    firstName: "",
+    lastName: "",
+    email: "",
+    password: "",
+    age: "",
   });
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const { register, updateUser } = useAuth();
+  const { register, updateUser, refreshUsers } = useAuth();
 
   // Poblar el formulario cuando se edita un usuario
   useEffect(() => {
-    if (mode === 'edit' && user) {
+    if (mode === "edit" && user) {
       setFormData({
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
-        password: '', // No mostrar la contraseña actual
-        age: user.age || ''
+        password: "", // No mostrar la contraseña actual
+        age: user.age || "",
       });
     } else {
       setFormData({
-        firstName: '',
-        lastName: '',
-        email: '',
-        password: '',
-        age: ''
+        firstName: "",
+        lastName: "",
+        email: "",
+        password: "",
+        age: "",
       });
     }
-    setError('');
+    setError("");
   }, [mode, user, isOpen]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
-    if (error) setError('');
+    if (error) setError("");
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
+    setError("");
 
     try {
       // Validaciones
-      if (!formData.firstName || !formData.lastName || !formData.email || !formData.age) {
-        throw new Error('Nombre, apellido, email y edad son obligatorios');
+      if (
+        !formData.firstName ||
+        !formData.lastName ||
+        !formData.email ||
+        !formData.age
+      ) {
+        throw new Error("Nombre, apellido, email y edad son obligatorios");
       }
 
       // Validar formato de email
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(formData.email)) {
-        throw new Error('Por favor ingresa un email válido');
+        throw new Error("Por favor ingresa un email válido");
       }
 
       // Validar edad
       const age = parseInt(formData.age);
       if (isNaN(age) || age < 1 || age > 120) {
-        throw new Error('Por favor ingresa una edad válida (1-120 años)');
+        throw new Error("Por favor ingresa una edad válida (1-120 años)");
       }
 
-      if (mode === 'create') {
+      if (mode === "create") {
         // Para crear usuario, la contraseña es obligatoria
         if (!formData.password) {
-          throw new Error('La contraseña es obligatoria');
+          throw new Error("La contraseña es obligatoria");
         }
         if (formData.password.length < 6) {
-          throw new Error('La contraseña debe tener al menos 6 caracteres');
+          throw new Error("La contraseña debe tener al menos 6 caracteres");
         }
 
         await register({
           ...formData,
-          age: parseInt(formData.age)
+          age: parseInt(formData.age),
         });
+
+        // Recargar la lista de usuarios después de crear
+        await refreshUsers();
       } else {
         // Para editar usuario
         const updateData = {
           firstName: formData.firstName,
           lastName: formData.lastName,
           email: formData.email,
-          age: parseInt(formData.age)
+          age: parseInt(formData.age),
         };
 
         // Solo actualizar contraseña si se proporciona una nueva
         if (formData.password) {
           if (formData.password.length < 6) {
-            throw new Error('La contraseña debe tener al menos 6 caracteres');
+            throw new Error("La contraseña debe tener al menos 6 caracteres");
           }
           updateData.password = formData.password;
         }
 
-        updateUser(user.id, updateData);
+        await updateUser(user._id, updateData);
+
+        // Recargar la lista de usuarios después de actualizar
+        await refreshUsers();
       }
 
       onClose();
@@ -121,20 +132,16 @@ const UserModal = ({ isOpen, onClose, user = null, mode = 'create' }) => {
     <div className="modal-overlay" onClick={handleOverlayClick}>
       <div className="modal">
         <div className="modal-header">
-          <h2>{mode === 'create' ? 'Crear Usuario' : 'Editar Usuario'}</h2>
+          <h2>{mode === "create" ? "Crear Usuario" : "Editar Usuario"}</h2>
           <button className="close-btn" onClick={onClose}>
             ×
           </button>
         </div>
 
-        {error && (
-          <div className="error">
-            {error}
-          </div>
-        )}
+        {error && <div className="error">{error}</div>}
 
         <form onSubmit={handleSubmit}>
-          <div style={{ display: 'flex', gap: '16px' }}>
+          <div style={{ display: "flex", gap: "16px" }}>
             <div className="form-group" style={{ flex: 1 }}>
               <label htmlFor="firstName">Nombre</label>
               <input
@@ -196,7 +203,7 @@ const UserModal = ({ isOpen, onClose, user = null, mode = 'create' }) => {
 
           <div className="form-group">
             <label htmlFor="password">
-              {mode === 'create' ? 'Contraseña' : 'Nueva Contraseña (opcional)'}
+              {mode === "create" ? "Contraseña" : "Nueva Contraseña (opcional)"}
             </label>
             <input
               type="password"
@@ -205,34 +212,41 @@ const UserModal = ({ isOpen, onClose, user = null, mode = 'create' }) => {
               value={formData.password}
               onChange={handleChange}
               className="input"
-              placeholder={mode === 'create' ? 'Contraseña' : 'Dejar vacío para mantener actual'}
+              placeholder={
+                mode === "create"
+                  ? "Contraseña"
+                  : "Dejar vacío para mantener actual"
+              }
               disabled={loading}
             />
-            {mode === 'edit' && (
-              <small style={{ color: '#6b7280', fontSize: '14px' }}>
+            {mode === "edit" && (
+              <small style={{ color: "#6b7280", fontSize: "14px" }}>
                 Deja vacío para mantener la contraseña actual
               </small>
             )}
           </div>
 
           <div className="actions">
-            <button 
-              type="button" 
-              onClick={onClose} 
+            <button
+              type="button"
+              onClick={onClose}
               className="btn btn-secondary"
               disabled={loading}
             >
               Cancelar
             </button>
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className="btn btn-primary"
               disabled={loading}
             >
-              {loading 
-                ? (mode === 'create' ? 'Creando...' : 'Actualizando...') 
-                : (mode === 'create' ? 'Crear Usuario' : 'Actualizar Usuario')
-              }
+              {loading
+                ? mode === "create"
+                  ? "Creando..."
+                  : "Actualizando..."
+                : mode === "create"
+                ? "Crear Usuario"
+                : "Actualizar Usuario"}
             </button>
           </div>
         </form>

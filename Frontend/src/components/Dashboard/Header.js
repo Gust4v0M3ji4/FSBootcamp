@@ -1,11 +1,11 @@
-import React from 'react';
-import { useAuth } from '../../context/AuthContext';
+import React from "react";
+import { useAuth } from "../../context/AuthContext";
 
 const Header = () => {
-  const { currentUser, logout } = useAuth();
+  const { currentUser, authMethod, logout, loading } = useAuth();
 
   const handleLogout = () => {
-    if (window.confirm('¿Estás seguro de que quieres cerrar sesión?')) {
+    if (window.confirm("¿Estás seguro de que quieres cerrar sesión?")) {
       logout();
     }
   };
@@ -13,19 +13,35 @@ const Header = () => {
   return (
     <header className="header">
       <div className="header-content">
-        <div className="logo">
-          👥 Gestión de Usuarios
-        </div>
-        
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <span style={{ color: '#6b7280' }}>
-            Bienvenido, <strong>{currentUser?.firstName} {currentUser?.lastName}</strong>
-          </span>
-          <button 
+        <div className="logo">� Tarea 3 - Autenticación</div>
+
+        <div className="user-info">
+          <div className="auth-info">
+            <span className="auth-method">
+              {authMethod === "jwt" ? "🎫 JWT Token" : "🍪 Session Cookie"}
+            </span>
+            {currentUser?.role && (
+              <span className={`role-badge ${currentUser.role}`}>
+                {currentUser.role === "admin" ? "👨‍💼 Admin" : "👤 User"}
+              </span>
+            )}
+          </div>
+          <div className="user-details">
+            <span className="welcome-text">
+              Bienvenido,{" "}
+              <strong>
+                {currentUser?.name ||
+                  `${currentUser?.firstName} ${currentUser?.lastName}`}
+              </strong>
+            </span>
+            <span className="user-email">{currentUser?.email}</span>
+          </div>
+          <button
             onClick={handleLogout}
             className="btn btn-secondary"
+            disabled={loading}
           >
-            Cerrar Sesión
+            {loading ? "Cerrando..." : "Cerrar Sesión"}
           </button>
         </div>
       </div>

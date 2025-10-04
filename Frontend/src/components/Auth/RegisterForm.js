@@ -1,64 +1,71 @@
-import React, { useState } from 'react';
-import { useAuth } from '../../context/AuthContext';
+import React, { useState } from "react";
+import { useAuth } from "../../context/AuthContext";
 
 const RegisterForm = ({ onSwitchToLogin }) => {
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-    age: ''
+    firstName: "",
+    lastName: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+    age: "",
   });
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState('');
+  const [success, setSuccess] = useState("");
 
-  const { register, login, setCurrentUser } = useAuth();
+  const { register, loginWithJWT } = useAuth();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
     // Limpiar mensajes cuando el usuario empiece a escribir
-    if (error) setError('');
-    if (success) setSuccess('');
+    if (error) setError("");
+    if (success) setSuccess("");
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
-    setSuccess('');
+    setError("");
+    setSuccess("");
 
     try {
       // Validaciones
-      if (!formData.firstName || !formData.lastName || !formData.email || !formData.password || !formData.confirmPassword || !formData.age) {
-        throw new Error('Todos los campos son obligatorios');
+      if (
+        !formData.firstName ||
+        !formData.lastName ||
+        !formData.email ||
+        !formData.password ||
+        !formData.confirmPassword ||
+        !formData.age
+      ) {
+        throw new Error("Todos los campos son obligatorios");
       }
 
       // Validar formato de email
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(formData.email)) {
-        throw new Error('Por favor ingresa un email válido');
+        throw new Error("Por favor ingresa un email válido");
       }
 
       // Validar longitud de contraseña
       if (formData.password.length < 6) {
-        throw new Error('La contraseña debe tener al menos 6 caracteres');
+        throw new Error("La contraseña debe tener al menos 6 caracteres");
       }
 
       // Validar que las contraseñas coincidan
       if (formData.password !== formData.confirmPassword) {
-        throw new Error('Las contraseñas no coinciden');
+        throw new Error("Las contraseñas no coinciden");
       }
 
       // Validar edad
       const age = parseInt(formData.age);
       if (isNaN(age) || age < 1 || age > 120) {
-        throw new Error('Por favor ingresa una edad válida (1-120 años)');
+        throw new Error("Por favor ingresa una edad válida (1-120 años)");
       }
 
       // Registrar usuario
@@ -67,25 +74,22 @@ const RegisterForm = ({ onSwitchToLogin }) => {
         lastName: formData.lastName,
         email: formData.email,
         password: formData.password,
-        age: parseInt(formData.age)
+        age: parseInt(formData.age),
       });
 
-      setSuccess('¡Cuenta creada exitosamente! Iniciando sesión...');
-      
-      // Auto-login inmediato usando el usuario recién creado
-      try {
-        console.log('Usuario recién registrado:', newUser);
-        console.log('Intentando auto-login inmediato');
-        
-        // Usar directamente el newUser para hacer login
-        setCurrentUser(newUser);
-        
-      } catch (error) {
-        console.error('Error en auto-login:', error);
-        setError('Usuario creado, pero hubo un problema con el login automático. Intenta iniciar sesión manualmente.');
-        setSuccess('');
-      }
+      setSuccess("¡Cuenta creada exitosamente! Iniciando sesión...");
 
+      // Auto-login inmediato con JWT
+      try {
+        await loginWithJWT(formData.email, formData.password);
+        console.log("Auto-login exitoso después del registro");
+      } catch (error) {
+        console.error("Error en auto-login:", error);
+        setError(
+          "Usuario creado, pero hubo un problema con el login automático. Intenta iniciar sesión manualmente."
+        );
+        setSuccess("");
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -101,20 +105,12 @@ const RegisterForm = ({ onSwitchToLogin }) => {
           <p>Únete a nuestra plataforma</p>
         </div>
 
-        {error && (
-          <div className="error">
-            {error}
-          </div>
-        )}
+        {error && <div className="error">{error}</div>}
 
-        {success && (
-          <div className="success">
-            {success}
-          </div>
-        )}
+        {success && <div className="success">{success}</div>}
 
         <form onSubmit={handleSubmit}>
-          <div style={{ display: 'flex', gap: '16px' }}>
+          <div style={{ display: "flex", gap: "16px" }}>
             <div className="form-group" style={{ flex: 1 }}>
               <label htmlFor="firstName">Nombre</label>
               <input
@@ -202,45 +198,31 @@ const RegisterForm = ({ onSwitchToLogin }) => {
             />
           </div>
 
-          <button 
-            type="submit" 
-            className="btn btn-primary" 
-            style={{ width: '100%' }}
+          <button
+            type="submit"
+            className="btn btn-primary"
+            style={{ width: "100%" }}
             disabled={loading}
           >
-            {loading ? 'Creando cuenta...' : 'Crear Cuenta'}
+            {loading ? "Creando cuenta..." : "Crear Cuenta"}
           </button>
         </form>
 
         <div className="auth-switch">
           <span>¿Ya tienes cuenta? </span>
-          <button onClick={onSwitchToLogin}>
-            Inicia sesión aquí
-          </button>
+          <button onClick={onSwitchToLogin}>Inicia sesión aquí</button>
         </div>
 
-        {/* Botón temporal para debug */}
-        <div style={{ marginTop: '20px', textAlign: 'center' }}>
-          <button 
-            type="button"
-            onClick={() => {
-              if (window.confirm('¿Limpiar localStorage? Esto eliminará todos los datos.')) {
-                localStorage.clear();
-                window.location.reload();
-              }
-            }}
-            style={{
-              background: 'none',
-              border: '1px solid #dc2626',
-              color: '#dc2626',
-              padding: '6px 12px',
-              borderRadius: '4px',
-              fontSize: '11px',
-              cursor: 'pointer'
-            }}
-          >
-            🗑️ Limpiar Datos
-          </button>
+        {/* Información de conexión */}
+        <div
+          style={{
+            marginTop: "20px",
+            textAlign: "center",
+            fontSize: "12px",
+            color: "#6b7280",
+          }}
+        >
+          <p>Conectando con backend en localhost:3001</p>
         </div>
       </div>
     </div>
